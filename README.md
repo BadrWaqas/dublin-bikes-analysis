@@ -91,9 +91,46 @@ python scripts/collect_data.py --loop --interval 300 --duration 4320
 
 For real usage patterns (commuter rush hours, weekday vs. weekend), let
 this run for at least a few days. On Linux/macOS, a cron entry works well;
-on Windows, use Task Scheduler to run the command periodically. A quick
-test run of a few minutes is enough to confirm the pipeline works, but
-won't show you much of a "pattern" yet.
+on Windows, use Task Scheduler (see below). A quick test run of a few
+minutes is enough to confirm the pipeline works, but won't show you much
+of a "pattern" yet.
+
+### Automating collection on Windows (Task Scheduler)
+
+Rather than `--loop`, on Windows it's more reliable to let Task Scheduler
+call `collect_data.py` once every few minutes — that way a single crashed
+run doesn't kill collection for the rest of the week, and it keeps running
+even across reboots/logins.
+
+`scripts/run_collector_task.ps1` is a small wrapper that Task Scheduler
+points at: it calls `collect_data.py` and appends its output to
+`data/raw/collector.log`, so you have somewhere to look if a scheduled run
+ever goes quiet. (It shells out to `cmd.exe` for that redirection
+specifically because PowerShell's own `*>>` redirection re-encodes an
+external program's output as UTF-16 and garbles it — worth remembering if
+you ever build a similar wrapper.)
+
+To set it up (adjust the python path and interval as needed):
+
+```powershell
+$scriptPath = "C:\path\to\dublin-bikes-analysis\scripts\run_collector_task.ps1"
+schtasks /create /tn "DublinBikesCollector" `
+  /tr "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" `
+  /sc MINUTE /mo 5 /f
+```
+
+Useful commands once it's created:
+
+```powershell
+schtasks /query /tn "DublinBikesCollector" /v /fo LIST   # check status / last result
+schtasks /run /tn "DublinBikesCollector"                  # trigger a run right now
+schtasks /delete /tn "DublinBikesCollector" /f            # stop and remove it
+```
+
+By default the task only runs while you're logged in (no stored
+credentials needed). If you want it to run even when logged out, recreate
+it with `/ru` and `/rp` (username/password) plus `/it` — see
+`schtasks /create /?`.
 
 **2. Clean it** into one analysis-ready table:
 
