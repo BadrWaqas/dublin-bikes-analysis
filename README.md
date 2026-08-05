@@ -102,20 +102,27 @@ call `collect_data.py` once every few minutes — that way a single crashed
 run doesn't kill collection for the rest of the week, and it keeps running
 even across reboots/logins.
 
-`scripts/run_collector_task.ps1` is a small wrapper that Task Scheduler
-points at: it calls `collect_data.py` and appends its output to
+`scripts/run_collector_task.ps1` is a small wrapper that does the actual
+work: it calls `collect_data.py` and appends its output to
 `data/raw/collector.log`, so you have somewhere to look if a scheduled run
 ever goes quiet. (It shells out to `cmd.exe` for that redirection
 specifically because PowerShell's own `*>>` redirection re-encodes an
 external program's output as UTF-16 and garbles it — worth remembering if
 you ever build a similar wrapper.)
 
-To set it up (adjust the python path and interval as needed):
+Task Scheduler itself is pointed at `scripts/run_collector_task.vbs`, not
+the `.ps1` directly. That extra layer exists purely to stop a console
+window from flashing on screen every 5 minutes: `powershell.exe -WindowStyle
+Hidden` still briefly flashes a window on some Windows builds, but
+launching it through `WScript.Shell.Run(..., 0, False)` from a `.vbs` is
+the reliable way to get a genuinely invisible run every time.
+
+To set it up (adjust the interval as needed):
 
 ```powershell
-$scriptPath = "C:\path\to\dublin-bikes-analysis\scripts\run_collector_task.ps1"
+$vbsPath = "C:\path\to\dublin-bikes-analysis\scripts\run_collector_task.vbs"
 schtasks /create /tn "DublinBikesCollector" `
-  /tr "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" `
+  /tr "wscript.exe //B `"$vbsPath`"" `
   /sc MINUTE /mo 5 /f
 ```
 
