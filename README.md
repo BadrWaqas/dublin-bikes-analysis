@@ -177,6 +177,52 @@ Copy-Item data\sample\station_status_clean_sample.csv data\processed\station_sta
 - An hour-of-day × day-of-week heatmap, to spot commuter rush-hour patterns
   once enough history has been collected.
 
+## Findings so far (4 weekdays: Tue Aug 4 – Fri Aug 7, 2026)
+
+The collector has been running for four consecutive weekdays, giving
+~23,600 snapshots across 114 stations. Here's what's actually visible in
+that data — and what isn't yet:
+
+- **Busiest / quietest stations are already clear.** Stations like
+  Eccles Street East, Fitzwilliam Square East, and Earlsfort Terrace sit
+  essentially empty on average (≤1% occupancy) — high demand for bikes,
+  likely riders taking bikes out faster than they're returned. At the
+  other end, Heuston Station (Central) and the Heuston Bridge stations run
+  85–96% full — popular drop-off points. This pattern held up across all
+  four days and is the most solid finding so far.
+- **Station capacity barely predicts occupancy.** Correlation between
+  dock capacity and average occupancy is -0.16 — weak. Bigger stations
+  aren't systematically fuller or emptier; *where* a station is plausibly
+  matters more than *how big* it is.
+- **Rush-hour patterns are not reliably visible yet — and here's why.**
+  The hour-of-day view is the one this project is really built around, and
+  right now it's inconclusive, honestly:
+  - `query_time` is stored in UTC, and Dublin is UTC+1 (BST) in August.
+    Converting to local time shows the collector has **zero snapshots
+    between roughly 05:00 and 14:00 local time on every single day** —
+    the entire morning, including the 8–9am commute, is a complete
+    blank. This is a collection gap (Task Scheduler only runs while
+    logged in, per the setup above — see [Ideas for extending
+    this](#ideas-for-extending-this)), not a real feature of demand.
+  - The only hint of a commuter pattern is a modest dip in network-wide
+    occupancy around 17:00–18:00 local time (~35–36%, vs. ~38–39%
+    overnight) — consistent with an evening rush hour, where bikes leave
+    docks faster than they're returned. But that dip is built from only
+    ~10–15 snapshots pulled from just 2 of the 4 days (Aug 5 and Aug 6),
+    so it's suggestive at best, not something to draw conclusions from
+    yet.
+  - **Weekday vs. weekend comparison is still pending** — all four days
+    collected so far are weekdays (Tue–Fri); today (Sat Aug 8) is the
+    first weekend day, so that comparison needs at least one more
+    collection cycle before it's meaningful.
+
+The honest summary: the pipeline works end-to-end on real data, and the
+*station*-level findings (busiest/quietest, capacity vs. occupancy) are
+solid. The *time*-of-day findings need a cleaner, gap-free collection
+window — ideally with the collector running continuously through a full
+morning commute — before the hour-of-day heatmap says anything trustworthy
+about rush hour.
+
 ## Notes on design choices
 
 - **Occupancy ratio** (`bikes available ÷ dock capacity`) is used instead of
