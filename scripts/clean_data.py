@@ -77,9 +77,13 @@ def clean(status: pd.DataFrame, info: pd.DataFrame) -> pd.DataFrame:
 
     df["occupancy_ratio"] = (df["num_bikes_available"] / df["capacity"]).clip(0, 1)
 
-    df["date"] = df["query_time"].dt.date
-    df["hour"] = df["query_time"].dt.hour
-    df["day_of_week"] = df["query_time"].dt.dayofweek.map(dict(enumerate(DAY_NAMES)))
+    # query_time is UTC. Convert to Dublin local time before deriving
+    # calendar features -- otherwise "hour of day" is off by an hour during
+    # BST (late Mar-late Oct) and rush-hour patterns get mislabeled.
+    local_time = df["query_time"].dt.tz_convert("Europe/Dublin")
+    df["date"] = local_time.dt.date
+    df["hour"] = local_time.dt.hour
+    df["day_of_week"] = local_time.dt.dayofweek.map(dict(enumerate(DAY_NAMES)))
 
     columns = [
         "query_time", "date", "hour", "day_of_week",

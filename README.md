@@ -177,59 +177,62 @@ Copy-Item data\sample\station_status_clean_sample.csv data\processed\station_sta
 - An hour-of-day × day-of-week heatmap, to spot commuter rush-hour patterns
   once enough history has been collected.
 
-## Findings so far (a full week: Tue Aug 4 – Tue Aug 11, 2026)
+## Findings so far (Tue Aug 4 – Thu Aug 13, 2026)
 
-The collector has now spanned a full calendar week, giving 87,894
-snapshots across 114 stations (771 distinct snapshot times) — roughly 4x
-the data behind the original four-weekday findings. The headline: the
-collector finally got one genuinely **continuous run — about 46 hours,
-from late Friday night (Aug 7, 23:46 UTC) through Sunday evening (Aug 9,
-22:04 UTC)**. That happened to land almost entirely on the weekend, which
-transformed the weekend picture but — importantly — left the project's
-original question about the *weekday* morning rush still unanswered:
+139,080 snapshots across 114 stations (1,220 distinct snapshot times).
+The headline change from earlier runs: the collector finally caught a
+weekday morning through early afternoon — **Tue Aug 11 has full 24-hour
+coverage, and Wed Aug 12 is unbroken from midnight through 2pm local** —
+and for the first time the network-wide hour-of-day view actually shows a
+commuter rush-hour signature instead of a blank stretch where one should be.
 
-- **The weekday morning rush hour is still not visible.** Across every
-  weekday collected so far (Tue Aug 4 – Fri Aug 7, plus Mon Aug 10 and
-  Tue Aug 11), there are **zero snapshots between roughly 06:00 and 13:00
-  UTC (07:00–14:00 local)** — the entire workday morning through early
-  afternoon, commute included, is blank on every single weekday. The one
-  continuous stretch the collector achieved ran through the weekend
-  instead, and then went patchy again from Monday morning onward —
-  consistent with the known limitation noted below (Task Scheduler only
-  runs while logged in). So the original blind spot from the first four
-  days hasn't closed; it just moved out of the way of the weekend.
-- **The weekend picture, on the other hand, is now excellent — and shows
-  a genuinely different pattern.** Saturday and Sunday each have full
-  24-hour coverage (~1,368 samples per hour: all 114 stations × 12 polls).
-  Both days show one broad midday trough rather than sharp AM/PM peaks:
-  network occupancy sits around 40–41% overnight, drifts down to ~38%
-  between roughly 10am and 4pm local, then climbs back to 40–41% by
-  evening. That's a leisure-usage signature — a single gentle dip — not
-  the two-peak commuter shape the project is ultimately trying to
-  capture.
-- **Weekday vs. weekend: a tentative but consistent gap.** At the hours
-  where both weekday and weekend data actually exist (roughly 00:00–02:00,
-  16:00–19:00, and 21:00–23:00 UTC), weekdays run about 2–4 percentage
-  points *emptier* than the same hour on Saturday/Sunday — e.g. midnight
-  UTC averages ~38.7% on weekdays vs. ~40.6% on weekends. The direction is
-  consistent across every overlapping hour, which is a real lead, but
-  weekday sample sizes at these hours are thin and none of them touch the
-  actual commute window — treat this as suggestive, not confirmed.
-- **Station-level findings got more solid, not different.** With ~4x the
-  data, the same stations top both ends: Fitzwilliam Square East (0.6%
-  avg occupancy) and Eccles Street East (2.0%) remain the clearest demand
-  hotspots; Heuston Bridge North and South remain the clearest drop-off
-  points (87–93% full). Capacity vs. occupancy correlation firmed up from
-  -0.16 to -0.36 — still weak-to-moderate, same conclusion: station
-  location plausibly matters more than size.
+(One correctness fix along the way: `clean_data.py`'s `hour`/`date`/
+`day_of_week` columns were previously derived from the raw UTC timestamp
+directly. Dublin is on BST — UTC+1 — for the whole of this collection
+window, so that silently mislabeled every hour by one. It now converts to
+`Europe/Dublin` local time first; all hours below are local.)
 
-The honest summary: a full week of wall-clock time has passed, but the
-collector has only had one truly gap-free stretch, and it happened to
-fall on the weekend. That's a genuinely useful, unplanned result —
-Dublin Bikes' weekend usage pattern is now well characterized — but it
-means the project's original goal (seeing the weekday commuter rush hour)
-still needs one more thing: the collector surviving a full weekday,
-overnight through the following evening, without a login/logout gap.
+- **The weekday morning rush is now visible.** Averaged across weekdays,
+  network occupancy is highest overnight (~40% around 4am), falls sharply
+  through the morning commute to a low of **32.8% at 8am**, partially
+  recovers by mid-morning, then dips a second time to **34.5% around
+  5pm** — the evening commute — before climbing back toward 40% overnight.
+  That two-trough shape (bikes leave docks at both rush hours, net fewer
+  sitting in a dock at that instant) is exactly the commuter signature the
+  project set out to find, and it wasn't there in earlier runs because no
+  weekday had ever had unbroken 7am–2pm coverage before.
+- **Weekends are flatter, as expected.** The weekend hour-of-day curve
+  swings only from about 38% to 41% across the whole day — roughly a
+  third the range of the weekday curve — with one shallow, broad dip
+  around midday/early afternoon rather than two sharp commute troughs.
+  That's a leisure-usage signature, not a commute one, and it hasn't
+  changed from earlier runs: Saturday and Sunday both have full 24-hour
+  coverage (Aug 8 and Aug 9), so this part of the picture was already
+  solid.
+- **Caveat on weekday sample size.** "Weekday" above is 8 calendar dates,
+  but only two of them (Tue Aug 11, Wed Aug 12) have substantial
+  coverage — the other six (Aug 4–7, Aug 10, Aug 13) have between 4 and 69
+  snapshots each, a leftover from the collection gaps described below. In
+  practice the weekday curve is mostly Aug 11 and Aug 12, not an average
+  over a full week of weekdays. Worth re-running this notebook again once
+  a few more full weekdays have accumulated to confirm the pattern holds.
+- **Station-level findings remain stable.** Grangegorman Lower (Central)
+  (2.5% avg occupancy), Eccles Street East (4.6%), and Fitzwilliam Square
+  East (4.7%) are the clearest demand hotspots; Smithfield North (84%) and
+  Heuston Bridge North/South (78–82%) remain the clearest drop-off points.
+  Capacity vs. occupancy correlation is -0.34 — still weak-to-moderate,
+  same conclusion as before: station location plausibly matters more than
+  size.
+
+**On the collection gaps themselves:** the multi-hour dropouts that
+previously blanked out every weekday's 7am–2pm window (and left Aug 10
+almost entirely uncollected) were traced to Windows power states — the
+laptop sleeping or losing power outside logged-in hours, which silently
+stops the Task Scheduler task (it doesn't wake the machine and only runs
+while logged in; see "Automating collection on Windows" above). `collector.log`
+shows the signature clearly: runs stop cleanly with no error, then resume
+hours later as if nothing happened. That's now resolved, which is what
+let Aug 11 and Aug 12 come through gap-free.
 
 ## Notes on design choices
 
