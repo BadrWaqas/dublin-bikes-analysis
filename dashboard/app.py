@@ -23,13 +23,20 @@ import streamlit as st
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 FULL_DATA_PATH = PROJECT_ROOT / "data" / "processed" / "station_status_clean.csv"
+PUBLISHED_DATA_PATH = PROJECT_ROOT / "data" / "published" / "station_status_clean.csv.gz"
 SAMPLE_DATA_PATH = PROJECT_ROOT / "data" / "sample" / "station_status_clean_sample.csv"
 
-# Use the full collected dataset when it exists (local runs). Otherwise fall
-# back to the small committed sample, so a fresh clone or a hosted deploy
-# (e.g. Streamlit Community Cloud) still shows a working dashboard.
-USING_SAMPLE = not FULL_DATA_PATH.exists()
-DATA_PATH = SAMPLE_DATA_PATH if USING_SAMPLE else FULL_DATA_PATH
+# Prefer data you've collected yourself (local runs). Otherwise use the
+# committed snapshot of the original collection window (compressed), so a
+# fresh clone or a hosted deploy (e.g. Streamlit Community Cloud) shows the
+# full analysis. The tiny sample is a last resort.
+if FULL_DATA_PATH.exists():
+    DATA_PATH = FULL_DATA_PATH
+elif PUBLISHED_DATA_PATH.exists():
+    DATA_PATH = PUBLISHED_DATA_PATH
+else:
+    DATA_PATH = SAMPLE_DATA_PATH
+USING_SAMPLE = DATA_PATH == SAMPLE_DATA_PATH
 
 # Reference palette (see dataviz notes in README): fixed-order categorical
 # hues, and a single blue hue ramp for magnitude/sequential encodings. Fixed
@@ -72,7 +79,7 @@ if not DATA_PATH.exists():
 if USING_SAMPLE:
     st.info(
         "Showing a small bundled sample of the data. Run the collector locally "
-        "for the full dataset (~88,000 records across 114 stations)."
+        "for the full dataset."
     )
 
 df = load_data()
