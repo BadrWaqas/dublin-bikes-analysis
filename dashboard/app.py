@@ -210,6 +210,18 @@ if n_days < 2:
     )
 
 network_avg = filtered.groupby("query_time", as_index=False)["occupancy_ratio"].mean()
+
+# The collector had downtime (e.g. the PC asleep). Break the line wherever
+# consecutive snapshots are more than 30 minutes apart, so gaps show as gaps
+# instead of straight lines that invent data that was never collected.
+gap = network_avg["query_time"].diff() > pd.Timedelta(minutes=30)
+if gap.any():
+    breaks = network_avg.loc[gap, ["query_time"]].copy()
+    breaks["query_time"] -= pd.Timedelta(seconds=1)
+    breaks["occupancy_ratio"] = None
+    network_avg = pd.concat([network_avg, breaks]).sort_values("query_time")
+    st.caption("Breaks in the line are periods when the collector wasn't running.")
+
 line_fig = go.Figure()
 line_fig.add_trace(go.Scatter(
     x=network_avg["query_time"], y=network_avg["occupancy_ratio"],
@@ -235,7 +247,11 @@ if selected_stations:
 
 # --- Hour x day-of-week heatmap ---------------------------------------------
 st.subheader("When is the network busiest?")
-st.caption("Average occupancy by hour of day and day of week — darker means more bikes docked (less availability).")
+st.caption(
+    "Average occupancy by hour of day and day of week — darker means more bikes docked "
+    "(less availability). The colour scale is stretched to the range in the data so "
+    "differences are visible; blank cells are hours with no data collected."
+)
 
 heatmap_data = (
     filtered.groupby(["day_of_week", "hour"], as_index=False, observed=False)["occupancy_ratio"]
@@ -246,7 +262,10 @@ heatmap_data = (
 heat_fig = px.imshow(
     heatmap_data,
     color_continuous_scale=SEQUENTIAL_BLUE,
-    zmin=0, zmax=1,
+    # Network averages sit in a narrow band (~30-45%), so a fixed 0-100% scale
+    # paints every cell the same pale blue. Fit the scale to the data instead.
+    zmin=float(heatmap_data.min().min()) if heatmap_data.notna().any().any() else 0,
+    zmax=float(heatmap_data.max().max()) if heatmap_data.notna().any().any() else 1,
     labels=dict(x="Hour of day", y="", color="Occupancy"),
     aspect="auto",
 )
