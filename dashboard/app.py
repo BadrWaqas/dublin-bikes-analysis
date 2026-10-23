@@ -21,7 +21,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "processed" / "station_status_clean.csv"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+FULL_DATA_PATH = PROJECT_ROOT / "data" / "processed" / "station_status_clean.csv"
+SAMPLE_DATA_PATH = PROJECT_ROOT / "data" / "sample" / "station_status_clean_sample.csv"
+
+# Use the full collected dataset when it exists (local runs). Otherwise fall
+# back to the small committed sample, so a fresh clone or a hosted deploy
+# (e.g. Streamlit Community Cloud) still shows a working dashboard.
+USING_SAMPLE = not FULL_DATA_PATH.exists()
+DATA_PATH = SAMPLE_DATA_PATH if USING_SAMPLE else FULL_DATA_PATH
 
 # Reference palette (see dataviz notes in README): fixed-order categorical
 # hues, and a single blue hue ramp for magnitude/sequential encodings. Fixed
@@ -60,6 +68,12 @@ if not DATA_PATH.exists():
         "```\npython scripts/collect_data.py\npython scripts/clean_data.py\n```"
     )
     st.stop()
+
+if USING_SAMPLE:
+    st.info(
+        "Showing a small bundled sample of the data. Run the collector locally "
+        "for the full dataset (~88,000 records across 114 stations)."
+    )
 
 df = load_data()
 
