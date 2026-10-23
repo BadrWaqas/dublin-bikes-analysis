@@ -172,6 +172,22 @@ cp data/sample/station_status_clean_sample.csv data/processed/station_status_cle
 Copy-Item data\sample\station_status_clean_sample.csv data\processed\station_status_clean.csv
 ```
 
+## Automated collection (GitHub Actions)
+
+The original collection ran on a Windows PC through Task Scheduler, so it
+stopped whenever the PC slept, and that caused the gaps in the first dataset.
+Collection now runs in the cloud instead:
+
+- `.github/workflows/collect.yml` runs every 30 minutes on GitHub's servers.
+- `scripts/ci_append.py` takes one snapshot, cleans it with the same rules
+  as `clean_data.py`, and appends it to `data/published/daily/YYYY-MM-DD.csv`.
+- The live dashboard reads the original dataset plus every daily file, so it
+  keeps growing on its own.
+
+Daily files are plain CSV rather than one big compressed file, because git stores
+appended lines as small diffs. Rewriting a single `.gz` every 30 minutes
+would add a full copy to the repo history on every run.
+
 ## What the dashboard shows
 
 - A live map of every station, colored by how full it currently is.

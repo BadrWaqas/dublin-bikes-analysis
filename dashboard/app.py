@@ -24,6 +24,7 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 FULL_DATA_PATH = PROJECT_ROOT / "data" / "processed" / "station_status_clean.csv"
 PUBLISHED_DATA_PATH = PROJECT_ROOT / "data" / "published" / "station_status_clean.csv.gz"
+DAILY_DIR = PROJECT_ROOT / "data" / "published" / "daily"
 SAMPLE_DATA_PATH = PROJECT_ROOT / "data" / "sample" / "station_status_clean_sample.csv"
 
 # Prefer data you've collected yourself (local runs). Otherwise use the
@@ -56,7 +57,14 @@ st.set_page_config(page_title="Dublin Bikes Usage Patterns", page_icon="🚲", l
 
 @st.cache_data(ttl=60)
 def load_data() -> pd.DataFrame:
-    df = pd.read_csv(DATA_PATH, parse_dates=["query_time"])
+    frames = [pd.read_csv(DATA_PATH)]
+    # On the hosted app, also pick up the snapshots GitHub Actions appends
+    # every 30 minutes (scripts/ci_append.py -> data/published/daily/).
+    if DATA_PATH == PUBLISHED_DATA_PATH:
+        frames += [pd.read_csv(f) for f in sorted(DAILY_DIR.glob("*.csv"))]
+    df = pd.concat(frames, ignore_index=True)
+    df["query_time"] = pd.to_datetime(df["query_time"], utc=True)
+    df = df.drop_duplicates(subset=["query_time", "station_id"])
     df["date"] = pd.to_datetime(df["date"])
     df["day_of_week"] = pd.Categorical(df["day_of_week"], categories=DAY_ORDER, ordered=True)
     return df
