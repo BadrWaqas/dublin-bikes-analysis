@@ -4,6 +4,8 @@ A small end-to-end data science project: collect real-time Dublin Bikes station
 data from the public GBFS API, clean it, explore usage patterns in a notebook,
 and serve the results in an interactive Streamlit dashboard.
 
+**[▶ Try the live dashboard](https://dublin-bikes-analysis-2afr8kyrdmu5wmmxbyawg6.streamlit.app/)**
+
 ![Average station occupancy by hour of day, weekday vs weekend](images/weekday-vs-weekend.png)
 *Average occupancy across all 114 stations by hour. On weekdays, stations empty out at the morning and evening commute peaks, while weekends stay higher and smoother all day.*
 
