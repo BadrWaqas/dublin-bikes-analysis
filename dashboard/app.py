@@ -139,9 +139,12 @@ map_fig = px.scatter_map(
     hover_name="name",
     hover_data={"num_bikes_available": True, "capacity": True, "occupancy_ratio": ":.0%", "lat": False, "lon": False},
     zoom=12,
+    center={"lat": float(latest["lat"].mean()), "lon": float(latest["lon"].mean())},
     height=500,
 )
-map_fig.update_layout(map_style="open-street-map", margin=dict(l=0, r=0, t=0, b=0))
+# CARTO's basemap tiles load reliably from hosted apps; the default
+# OpenStreetMap tile servers can refuse requests and leave a blank map.
+map_fig.update_layout(map_style="carto-positron", margin=dict(l=0, r=0, t=0, b=0))
 map_fig.update_coloraxes(colorbar_title="Occupancy")
 st.plotly_chart(map_fig, width='stretch')
 
