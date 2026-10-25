@@ -70,6 +70,58 @@ def load_data() -> pd.DataFrame:
     return df
 
 
+SHORT_GAP = pd.Timedelta(hours=6)   # break the line, but keep the axis
+LONG_PAUSE = pd.Timedelta(days=2)   # cut the empty stretch out of the axis
+
+
+def occupancy_over_time_figure(df: pd.DataFrame):
+    """Network-average occupancy as an hourly line.
+
+    The data comes from two very different collectors: 5-minute snapshots from
+    a PC in August, then a GitHub Actions run every few hours since October,
+    with weeks of nothing in between. Plotting raw snapshots on a continuous
+    axis gave a flat empty chart with the newer points invisible, so:
+    - average into hourly buckets (smooths the 5-minute noise),
+    - break the line at gaps over SHORT_GAP rather than drawing data we never
+      collected, and show markers so lone points stay visible,
+    - remove pauses longer than LONG_PAUSE from the x-axis entirely, marked
+      with a dotted line. Returns the figure and the list of pauses.
+    """
+    per_snapshot = df.groupby("query_time")["occupancy_ratio"].mean()
+    local = per_snapshot.tz_convert("Europe/Dublin").tz_localize(None)
+    hourly = local.resample("1h").mean().dropna().reset_index()
+    hourly.columns = ["time", "occupancy"]
+
+    step = hourly["time"].diff()
+    pauses = [
+        (hourly["time"].iloc[i - 1], hourly["time"].iloc[i])
+        for i in hourly.index[step > LONG_PAUSE]
+    ]
+
+    gaps = hourly.loc[step > SHORT_GAP, ["time"]].copy()
+    gaps["time"] -= pd.Timedelta(minutes=1)
+    gaps["occupancy"] = None
+    plotted = pd.concat([hourly, gaps]).sort_values("time")
+
+    fig = go.Figure(go.Scatter(
+        x=plotted["time"], y=plotted["occupancy"], mode="lines+markers",
+        line=dict(color=CATEGORICAL_PALETTE[0], width=2), marker=dict(size=4),
+        connectgaps=False, name="Network average",
+        hovertemplate="%{x|%a %-d %b, %H:00}<br>Occupancy: %{y:.0%}<extra></extra>",
+    ))
+    fig.update_xaxes(rangebreaks=[
+        dict(bounds=[start + pd.Timedelta(hours=2), end - pd.Timedelta(hours=2)])
+        for start, end in pauses
+    ])
+    for _, end in pauses:
+        fig.add_vline(x=end - pd.Timedelta(hours=2), line_dash="dot", line_color="gray")
+    fig.update_layout(
+        yaxis_tickformat=".0%", yaxis_title="Avg occupancy", xaxis_title="",
+        height=350, showlegend=False, margin=dict(t=20),
+    )
+    return fig, pauses
+
+
 st.title("🚲 Dublin Bikes — Station Usage Patterns")
 st.caption(
     "Data collected from the public Dublin Bikes GBFS feed "
@@ -217,29 +269,12 @@ if n_days < 2:
         "(e.g. via cron or Windows Task Scheduler) to see real commuter patterns emerge."
     )
 
-network_avg = filtered.groupby("query_time", as_index=False)["occupancy_ratio"].mean()
-
-# The collector had downtime (e.g. the PC asleep). Break the line wherever
-# consecutive snapshots are more than 30 minutes apart, so gaps show as gaps
-# instead of straight lines that invent data that was never collected.
-gap = network_avg["query_time"].diff() > pd.Timedelta(minutes=30)
-if gap.any():
-    breaks = network_avg.loc[gap, ["query_time"]].copy()
-    breaks["query_time"] -= pd.Timedelta(seconds=1)
-    breaks["occupancy_ratio"] = None
-    network_avg = pd.concat([network_avg, breaks]).sort_values("query_time")
-    st.caption("Breaks in the line are periods when the collector wasn't running.")
-
-line_fig = go.Figure()
-line_fig.add_trace(go.Scatter(
-    x=network_avg["query_time"], y=network_avg["occupancy_ratio"],
-    mode="lines", line=dict(color=CATEGORICAL_PALETTE[0], width=2),
-    name="Network average", hovertemplate="%{x}<br>Occupancy: %{y:.0%}<extra></extra>",
-))
-line_fig.update_layout(
-    yaxis_tickformat=".0%", yaxis_title="Avg occupancy", xaxis_title="",
-    height=350, showlegend=False,
-)
+line_fig, pauses = occupancy_over_time_figure(filtered)
+caption = "Hourly network average (Dublin time)."
+if pauses:
+    skipped = "; ".join(f"{start:%-d %b} – {end:%-d %b}" for start, end in pauses)
+    caption += f" The collector was paused {skipped}, so that stretch is skipped (dotted line)."
+st.caption(caption)
 st.plotly_chart(line_fig, width='stretch')
 
 if selected_stations:
